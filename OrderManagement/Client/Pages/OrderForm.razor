@@ -1,0 +1,178 @@
+﻿@page "/order-form/{OrderId?}"
+@inject HttpClient Http;
+@inject NavigationManager NavigationManager;
+
+@using OrderManagement.DTO.Mappers;
+@using OrderManagement.DTO.Requests;
+@using OrderManagement.DTO.Responses;
+@using OrderManagement.Client.Components;
+
+@if (string.IsNullOrEmpty(OrderId))
+{
+    <PageTitle>Order Management | New Order</PageTitle>
+    <h2>New Order</h2>
+}
+else
+{
+    <PageTitle>Order Management | @(IsReadOnly ? "Order Details" : "Update Order")</PageTitle>
+    <div class="row justify-content-between">
+        <h2 class="col-auto">@(IsReadOnly ? "Order Details" : "Update Order" )</h2>
+        <div class="col-auto">
+        <button type="button" class="btn btn-outline-primary" @onclick="ToggleFormEdit" hidden="@IsHidden()">@(IsReadOnly ? "Edit" : "Cancel")</button>
+        <button type="button" class="btn btn-outline-danger" @onclick="DeleteItem" hidden="@IsHidden()">Delete</button>
+        </div>
+    </div>
+}
+
+<EditForm class="my-3" Model=@OrderRequest OnValidSubmit=@HandleSubmit>
+    <ObjectGraphDataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row g-3">
+        <div class="col-8">
+            <label for="orderName" class="form-label">Name</label>
+            <InputText @bind-Value="OrderRequest.Name" id="orderName" class="form-control" readonly="@IsReadOnly"></InputText>
+        </div>
+
+        <div class="col-4">
+            <label for="orderState" class="form-label">State</label>
+            <InputText @bind-Value="OrderRequest.State" id="orderState" class="form-control" readonly="@IsReadOnly"></InputText>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="clearfix">
+                    <h4 class="float-start">Windows</h4>
+                    <button type="button" class="btn btn-outline-primary float-end" @onclick="AddWindow" hidden="@IsReadOnly">Add Window</button>
+                </div>
+                @foreach (var window in OrderRequest.Windows)
+                {
+                    <div class="card border-success mt-3">
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-12 clearfix">
+                                    <h4 class="float-start">Window</h4>
+                                    <button type="button" class="btn btn-outline-danger float-end" hidden="@IsReadOnly" @onclick="() => DeleteWindow(window.Id)">Delete</button>
+                                </div>
+                                <div class="col-12">
+                                    <label for="windowName" class="form-label">Name</label>
+                                    <InputText @bind-Value="window.Name" id="windowName" class="form-control" readonly="@IsReadOnly"></InputText>
+                                </div>
+
+                                <div class="col-6">
+                                    <label for="quantityOfWindows" class="form-label">Quantity of Windows</label>
+                                    <InputNumber @bind-Value="window.QuantityOfWindows" id="quantityOfWindows" class="form-control" readonly="@IsReadOnly"></InputNumber>
+                                </div>
+
+                                <div class="col-6">
+                                    <label for="totalSubElements" class="form-label">Total sub-elements</label>
+                                    <InputNumber @bind-Value="window.TotalSubElements" id="totalSubElements" class="form-control" readonly="@IsReadOnly"></InputNumber>
+                                </div>
+
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="clearfix">
+                                            <h4 class="float-start">Sub-elements</h4>
+                                            <button type="button" class="btn btn-outline-primary float-end" hidden="@IsReadOnly" @onclick="() => AddSubElement(window.Id)">Add sub-element</button>
+                                        </div>
+
+                                        @foreach (var element in window.SubElements)
+                                        {
+                                            <SubElementForm SubElement="element" IsReadOnly="@IsReadOnly" OnElementDelete="(subElementId) => DeleteSubElement(window.Id, subElementId)" />
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="d-grid gap-2 col-6 mx-auto mt-3">
+        <button class="btn btn-primary" type="submit" hidden=@IsReadOnly>Save</button>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter]
+    public string? OrderId { get; set; }
+    public bool IsReadOnly = false;
+    public OrderRequest OrderRequest = new OrderRequest();
+}
+
+@functions {
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrEmpty(OrderId))
+        {
+            IsReadOnly = true;
+            var orderResponse = await Http.GetFromJsonAsync<Order>($"api/Orders/{OrderId}");
+            OrderRequest = orderResponse != null ? orderResponse.ToRequest() : new OrderRequest();
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (!string.IsNullOrEmpty(OrderId))
+        {
+            await Http.PutAsJsonAsync<OrderRequest>($"api/Orders/{OrderId}", OrderRequest);
+        }
+        else
+        {
+            await Http.PostAsJsonAsync<OrderRequest>("api/Orders", OrderRequest);
+        }
+        NavigationManager.NavigateTo("/");
+    }
+
+    public void ToggleFormEdit ()
+    {
+        IsReadOnly = !IsReadOnly;
+    }
+
+    public bool IsHidden()
+    {
+        return string.IsNullOrEmpty(OrderId);
+    }
+
+    public async Task DeleteItem()
+    {
+        await Http.DeleteAsync($"api/Orders/{OrderId}");
+        NavigationManager.NavigateTo("/");
+    }
+
+    public void AddWindow()
+    {
+        OrderRequest.Windows.Add(new WindowRequest());
+    }
+
+    public void DeleteWindow(Guid windowId)
+    {
+        var window = OrderRequest.Windows.FirstOrDefault(w => w.Id == windowId);
+        if (window != null)
+        {
+            OrderRequest.Windows.Remove(window);
+        }
+    }
+
+    public void AddSubElement(Guid windowId)
+    {
+        var subElements = OrderRequest.Windows.First(w => w.Id == windowId).SubElements;
+        var nextElementNo = 1;
+        if(subElements.Count > 0)
+        {
+            nextElementNo = subElements.Max(s => s.ElementNo) + 1;
+        }
+        subElements.Add(new SubElementRequest(nextElementNo));
+    }
+
+    public void DeleteSubElement(Guid windowId, Guid subElementId)
+    {
+        var window = OrderRequest.Windows.FirstOrDefault(w => w.Id == windowId);
+        var element = window?.SubElements.FirstOrDefault(e => e.Id == subElementId);
+        if (element != null)
+        {
+            window?.SubElements.Remove(element);
+        }
+    }
+}

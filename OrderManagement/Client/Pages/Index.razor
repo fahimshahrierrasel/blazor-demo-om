@@ -1,0 +1,58 @@
+﻿@page "/"
+@using OrderManagement.DTO.Responses
+@inject HttpClient Http
+
+<PageTitle>Order Management | Home</PageTitle>
+
+<h2>Order Management</h2>
+<div class="clearfix">
+    <NavLink class="nav-link btn btn-outline-primary float-end" href="order-form">
+        <span class="oi oi-plus" aria-hidden="true"></span> New Order
+    </NavLink>
+</div>
+<h2>Orders</h2>
+@if (orders == null)
+{
+    <p>Fetching...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>State</th>
+                <th>No of Windows</th>
+                <th>Last Update</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var order in orders)
+            {
+                <tr>
+                    <td>
+                        <NavLink class="nav-link" href="@($"order-form/{order.Id}")">
+                            @order.Name
+                        </NavLink>
+                    </td>
+                    <td>@order.State</td>
+                    <td>@order.Windows.Count</td>
+                    <td>@order.CreatedDate.ToLocalTime().ToString("G")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private Order[]? orders;
+
+
+}
+
+@functions {
+    protected override async Task OnInitializedAsync()
+    {
+        orders = await Http.GetFromJsonAsync<Order[]>("api/Orders");
+    }
+}
