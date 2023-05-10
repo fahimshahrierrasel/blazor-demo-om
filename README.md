@@ -11,4 +11,4 @@
 - Create / update the database
 	- Open `Package Manager Console` (Tools -> NuGet Package Manager -> Package Manager Console)
 	- Execute command `Update-Database` to create/update the db.
-- Rusn the `OrderManagement` project.
+- Run the `OrderManagement` project.
